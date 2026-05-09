@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speaking Test Lab - Final Report Mode</title>
+    <style>
+        body { font-family: 'Pretendard', sans-serif; max-width: 800px; margin: 0 auto; padding: 40px 20px; background-color: #f8f9fa; color: #333; }
+        .card { background: white; border-radius: 15px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h1 { text-align: center; color: #2c3e50; }
+        #question-area { background: #e9ecef; border-left: 5px solid #007bff; padding: 20px; font-size: 1.1em; margin-bottom: 20px; min-height: 50px; border-radius: 0 10px 10px 0; }
+        .controls { text-align: center; margin-bottom: 30px; }
+        button { padding: 12px 25px; font-size: 16px; font-weight: bold; border: none; border-radius: 30px; cursor: pointer; transition: 0.2s; margin: 0 5px; }
+        #startBtn { background: #28a745; color: white; }
+        #stopBtn { background: #dc3545; color: white; }
+        button:disabled { background: #ccc !important; cursor: not-allowed; }
+        .status { text-align: center; font-weight: bold; margin-bottom: 10px; color: #666; }
+        
+        .model-answer-box { margin-top: 15px; padding: 12px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; font-size: 0.95em; color: #856404; line-height: 1.4; }
+        .word-container { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
+        .word-card { border: 2px solid #ddd; padding: 10px; border-radius: 12px; text-align: center; min-width: 80px; background: white; }
+        .feedback-box { background: #f1f3f5; padding: 20px; border-radius: 10px; line-height: 1.6; white-space: pre-wrap; margin-top: 20px; border-left: 5px solid #6c757d; }
+
+        /* 비교 오디오 스타일 */
+        .audio-comparison { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
+        .audio-unit { flex: 1; min-width: 200px; background: #fff; padding: 10px; border-radius: 8px; border: 1px solid #eee; }
+        .audio-unit label { display: block; font-size: 0.8em; font-weight: bold; margin-bottom: 5px; color: #555; }
+        audio { width: 100%; height: 35px; }
+        .report-item { border-bottom: 2px solid #eee; padding-bottom: 30px; margin-bottom: 30px; }
+    </style>
+</head>
+<body>
+    <h1>🎤 Speaking Test Lab</h1>
+
+    <div class="card" id="setup-area">
+        <h3>1. 질문 생성 (YouTube 기반)</h3>
+        <input type="text" id="youtubeUrl" placeholder="유튜브 URL을 입력하세요" style="width: 70%; padding: 10px; border-radius: 5px; border: 1px solid #ddd;">
+        <button onclick="fetchQuestions()" id="genBtn" style="background: #333; color: white; padding: 10px 15px;">질문 만들기</button>
+    </div>
+
+    <div class="card" id="test-section" style="display: none;">
+        <div id="step-indicator" style="color: #007bff; margin-bottom: 5px; font-weight: bold;">Question 1 of 3</div>
+        <div id="question-area">질문을 불러오는 중...</div>
+        <div class="status" id="status-text">대기 중</div>
+        <div class="controls">
+            <button id="startBtn">🎤 답변 시작</button>
+            <button id="stopBtn" disabled>🛑 답변 종료</button>
+        </div>
+    </div>
+
+    <div id="result-display" style="display: none;">
+        <div class="card">
+            <h2 style="text-align: center; border-bottom: 2px solid #007bff; padding-bottom: 10px;">📊 최종 테스트 리포트</h2>
+            <div id="final-report-content"></div>
+            <div style="text-align: center; margin-top: 20px;">
+                <button onclick="location.reload()" style="background: #6c757d; color: white;">다시 테스트하기</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let questions = [], currentStep = 0, testResults = [];
+        let socket, audioContext, processor, mediaRecorder, localChunks = [];
+
+        const statusText = document.getElementById('status-text');
+        const reportContent = document.getElementById('final-report-content');
+
+        async function fetchQuestions() {
+            const url = document.getElementById('youtubeUrl').value;
+            if (!url) return alert("URL을 입력해줘!");
+            document.getElementById('genBtn').innerText = "분석 중...";
+            try {
+                const res = await fetch(`/generate-questions?url=${encodeURIComponent(url)}`);
+                const data = await res.json();
+                questions = data.questions.split('\n').map(q => q.trim()).filter(q => q.includes('|')).slice(0, 3);
+                document.getElementById('setup-area').style.display = 'none';
+                document.getElementById('test-section').style.display = 'block';
+                renderStep();
+            } catch (e) { alert("질문 생성 실패!"); }
+        }
+
+        function renderStep() {
+            document.getElementById('step-indicator').innerText = `Question ${currentStep + 1} of 3`;
+            const parts = questions[currentStep].split('|');
+            document.getElementById('question-area').innerHTML = `
+                <div style="font-weight: bold; font-size: 1.2em;">${parts[0].trim()}</div>
+                <div style="color: #666; font-size: 0.9em; margin-top: 5px;">${parts[1].trim()}</div>
+                <div class="model-answer-box"><strong>💡 테스트용 정답:</strong><br>${parts[2] ? parts[2].trim() : "준비 중"}</div>
+            `;
+            statusText.innerText = "답변 시작 버튼을 눌러주세요.";
+            statusText.style.color = "#666";
+        }
+
+        document.getElementById('startBtn').onclick = async () => {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            // 1. 내 목소리 로컬 녹음용
+            mediaRecorder = new MediaRecorder(stream);
+            localChunks = [];
+            mediaRecorder.ondataavailable = (e) => localChunks.push(e.data);
+            mediaRecorder.start();
+
+            // 2. 실시간 분석용 웹소켓
+            socket = new WebSocket(`ws://${window.location.host}/ws/audio`);
+            socket.onopen = async () => {
+                statusText.innerText = "🔴 녹음 중...";
+                statusText.style.color = "red";
+                audioContext = new AudioContext({ sampleRate: 16000 });
+                const source = audioContext.createMediaStreamSource(stream);
+                processor = audioContext.createScriptProcessor(2048, 1, 1);
+                source.connect(processor); processor.connect(audioContext.destination);
+
+                processor.onaudioprocess = (e) => {
+                    if (socket.readyState === 1) {
+                        const input = e.inputBuffer.getChannelData(0);
+                        const pcm = new Int16Array(input.length);
+                        for (let i = 0; i < input.length; i++) pcm[i] = Math.max(-1, Math.min(1, input[i])) * 0x7FFF;
+                        socket.send(pcm.buffer);
+                    }
+                };
+            };
+
+            socket.onmessage = (event) => {
+                const res = JSON.parse(event.data);
+                
+                // 내 목소리 Blob URL 생성
+                const audioBlob = new Blob(localChunks, { type: 'audio/wav' });
+                res.local_voice_url = URL.createObjectURL(audioBlob);
+                res.q_text = questions[currentStep].split('|')[0].trim();
+                
+                testResults.push(res); // 결과 저장
+
+                if (currentStep < 2) {
+                    currentStep++; renderStep();
+                    document.getElementById('startBtn').disabled = false;
+                    document.getElementById('stopBtn').disabled = true;
+                } else { showFinalReport(); }
+            };
+
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+        };
+
+        document.getElementById('stopBtn').onclick = () => {
+            if (mediaRecorder) mediaRecorder.stop();
+            if (processor) processor.disconnect();
+            if (audioContext) audioContext.close();
+            
+            if (socket && socket.readyState === 1) {
+                const currentQ = questions[currentStep].split('|')[0].trim();
+                socket.send(JSON.stringify({ type: "stop", question: currentQ }));
+                statusText.innerText = "⏳ 분석 중...";
+                statusText.style.color = "#fd7e14";
+            }
+            document.getElementById('stopBtn').disabled = true;
+        };
+
+        function showFinalReport() {
+            document.getElementById('test-section').style.display = 'none';
+            document.getElementById('result-display').style.display = 'block';
+            
+            let html = "";
+            testResults.forEach((res, idx) => {
+                html += `
+                    <div class="report-item">
+                        <h4 style="color:#007bff;">Question ${idx + 1}: ${res.q_text}</h4>
+                        <p><strong>내 답변:</strong> "${res.user_said}" (점수: <span style="color:#28a745;">${res.score.pronunciation}점</span>)</p>
+                        <div class="feedback-box">${res.feedback.replace(/\n/g, '<br>')}</div>
+                        <div class="audio-comparison">
+                            <div class="audio-unit"><label>🎤 내 목소리</label><audio src="${res.local_voice_url}" controls></audio></div>
+                            <div class="audio-unit"><label>🔹 정석 발음</label><audio src="${res.user_tts_url}" controls></audio></div>
+                            <div class="audio-unit"><label>🔸 모범 답안</label>${res.model_tts_url ? `<audio src="${res.model_tts_url}" controls></audio>` : '<small>생성 실패</small>'}</div>
+                        </div>
+                    </div>`;
+            });
+            reportContent.innerHTML = html;
+        }
+    </script>
+</body>
+</html>

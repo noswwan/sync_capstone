@@ -1,0 +1,12 @@
+services:
+  db:
+    image: ankane/pgvector:latest
+    container_name: sync_db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=sync_db
+      - POSTGRES_USER=geunhan
+      - POSTGRES_PASSWORD=password123
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data

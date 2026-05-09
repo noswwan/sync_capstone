@@ -1,0 +1,22 @@
+# 환경 변수 및 API 키 (가장 중요!)
+.env
+
+# 파이썬 가상환경 및 캐시
+venv/
+__pycache__/
+*.pyc
+
+# 데이터베이스 및 대용량 데이터
+postgres_data/
+
+# 오디오 데이터 및 임시 파일
+static/audio/*.mp3
+temp_uploads/
+temp_*
+
+# OS 및 IDE 설정
+.DS_Store
+.vscode/
+
+# 바이너리 실행 파일 (대용량)
+*.exe

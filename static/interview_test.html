@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>AI 면접 시스템 통합 테스트</title>
+    <style>
+        body { font-family: sans-serif; max-width: 850px; margin: 40px auto; padding: 20px; line-height: 1.6; background-color: #f8f9fa; }
+        .section { background: white; border: 1px solid #ddd; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; }
+        .chat-box { background: #ffffff; padding: 15px; height: 350px; overflow-y: auto; border: 1px solid #eee; margin-bottom: 10px; border-radius: 8px; }
+        .ai-msg { color: #007bff; font-weight: bold; margin-bottom: 15px; padding: 10px; background: #eef6ff; border-radius: 8px; }
+        .user-msg { color: #28a745; text-align: right; margin-bottom: 15px; padding: 10px; background: #f0fff4; border-radius: 8px; }
+        
+        select, input[type="text"], button { padding: 10px; margin-top: 5px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; }
+        input[type="text"] { width: 95%; }
+        button { cursor: pointer; background: #007bff; color: white; border: none; font-weight: bold; transition: 0.2s; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #ccc; }
+        
+        .tech-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; padding: 10px; background: #fafafa; border-radius: 6px; }
+        label { font-size: 13px; cursor: pointer; }
+        hr { border: 0; border-top: 1px solid #eee; margin: 20px 0; }
+    </style>
+</head>
+<body>
+
+    <h2>🎓 AI 면접 시스템 통합 테스트</h2>
+
+    <div class="section">
+        <h3>1. 면접 통합 설정 (필수 정보 입력)</h3>
+        
+        <p><strong>직무 선택:</strong> 
+            <select id="posSelect" onchange="updateTechOptions()">
+                <option value="">-- 직무를 선택하세요 --</option>
+                <option value="Frontend">Frontend</option>
+                <option value="Backend">Backend</option>
+                <option value="Embedded/IoT">Embedded/IoT</option>
+            </select>
+        </p>
+
+        <div id="techSection" style="display:none;">
+            <p><strong>보유 기술 스택 (복수 선택):</strong></p>
+            <div id="techCheckboxes" class="tech-options"></div>
+        </div>
+
+        <p><strong>경력 수준:</strong> 
+            <select id="expLevel">
+                <option value="Junior (Entry-level)">신입/인턴 (Entry)</option>
+                <option value="Junior (1-3 years)">주니어 (1~3년)</option>
+                <option value="Senior (5+ years)">시니어 (5년 이상)</option>
+            </select>
+        </p>
+
+        <p><strong>대표 프로젝트 요약:</strong><br>
+            <input type="text" id="projSum" placeholder="예: FastAPI를 활용한 실시간 면접 시스템 개발">
+        </p>
+
+        <p><strong>면접 스타일:</strong> 
+            <select id="interMode">
+                <option value="Friendly and Supportive">친절한 멘토형</option>
+                <option value="Sharp and Analytical">날카로운 분석형</option>
+                <option value="Aggressive Stress Interview">압박 면접형</option>
+            </select>
+        </p>
+
+        <hr>
+        <h3>자기소개서 업로드 (선택 사항)</h3>
+        <input type="file" id="pdfFile" accept=".pdf">
+        
+        <br><br>
+        <button id="startBtn" onclick="startIntegratedInterview()" style="width: 100%; height: 50px; font-size: 16px;">통합 정보로 면접 시작</button>
+    </div>
+
+    <div class="section">
+        <h3>2. 실시간 면접 진행</h3>
+        <div id="chatBox" class="chat-box">
+            <div class="ai-msg">시스템: 정보를 입력하고 버튼을 누르면 면접이 시작됩니다.</div>
+        </div>
+        <input type="text" id="userAnswer" placeholder="영어로 답변을 입력하세요..." disabled>
+        <button id="sendBtn" onclick="sendAnswer()" disabled>답변 전송</button>
+    </div>
+
+    <script>
+        let currentQuestion = "";
+        
+        const techData = {
+            "Frontend": ["React", "Vue", "TypeScript", "Next.js", "Tailwind CSS", "Redux"],
+            "Backend": ["FastAPI", "Spring Boot", "Node.js", "PostgreSQL", "Redis", "Django"],
+            "Embedded/IoT": ["C/C++", "FreeRTOS", "MQTT", "ESP32", "Raspberry Pi", "Arduino"]
+        };
+
+        function updateTechOptions() {
+            const pos = document.getElementById('posSelect').value;
+            const techDiv = document.getElementById('techCheckboxes');
+            const techSection = document.getElementById('techSection');
+            
+            techDiv.innerHTML = "";
+            if (techData[pos]) {
+                techSection.style.display = "block";
+                techData[pos].forEach(tech => {
+                    techDiv.innerHTML += `<label><input type="checkbox" name="tech" value="${tech}"> ${tech}</label>`;
+                });
+            } else {
+                techSection.style.display = "none";
+            }
+        }
+
+        // 통합 면접 시작 함수
+        async function startIntegratedInterview() {
+            const pos = document.getElementById('posSelect').value;
+            const proj = document.getElementById('projSum').value;
+            const fileInput = document.getElementById('pdfFile');
+            const startBtn = document.getElementById('startBtn');
+
+            if(!pos || !proj) {
+                alert("직무와 프로젝트 요약은 필수 입력 사항입니다!");
+                return;
+            }
+
+            // Multipart/form-data 전송을 위한 FormData 생성
+            const formData = new FormData();
+            formData.append("position", pos);
+            formData.append("experience_level", document.getElementById('expLevel').value);
+            formData.append("project_summary", proj);
+            formData.append("interview_mode", document.getElementById('interMode').value);
+            
+            // 기술 스택 리스트를 JSON 문자열로 변환하여 추가
+            const techs = Array.from(document.querySelectorAll('input[name="tech"]:checked')).map(el => el.value);
+            formData.append("tech_stack", JSON.stringify(techs));
+
+            // PDF 파일이 있는 경우에만 추가
+            if (fileInput.files[0]) {
+                formData.append("file", fileInput.files[0]);
+            }
+
+            startBtn.disabled = true;
+            addMessage("시스템", "입력하신 정보를 바탕으로 첫 질문을 생성 중입니다...", "ai-msg");
+
+            try {
+                // 백엔드의 /interview/start-unified 엔드포인트 호출
+                const response = await fetch('http://127.0.0.1:8000/interview/start-unified', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                
+                if (data.status === "success") {
+                    currentQuestion = data.question;
+                    addMessage("AI 면접관", currentQuestion, "ai-msg");
+                    activateInput();
+                } else {
+                    alert("에러: " + data.message);
+                }
+            } catch (error) {
+                console.error(error);
+                alert("서버 연결 실패");
+            } finally {
+                startBtn.disabled = false;
+            }
+        }
+
+        async function sendAnswer() {
+            const answerInput = document.getElementById('userAnswer');
+            const answer = answerInput.value;
+            if (!answer) return;
+
+            addMessage("나", answer, "user-msg");
+            answerInput.value = "";
+
+            try {
+                const response = await fetch('http://127.0.0.1:8000/interview/answer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        current_question: currentQuestion,
+                        user_answer: answer
+                    })
+                });
+
+                const data = await response.json();
+                currentQuestion = data.follow_up;
+                addMessage("AI 면접관", currentQuestion, "ai-msg");
+            } catch (error) {
+                alert("답변 전송 에러");
+            }
+        }
+
+        function activateInput() {
+            document.getElementById('userAnswer').disabled = false;
+            document.getElementById('sendBtn').disabled = false;
+        }
+
+        function addMessage(sender, text, className) {
+            const chatBox = document.getElementById('chatBox');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = className;
+            msgDiv.innerHTML = `<strong>${sender}:</strong> ${text}`;
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    </script>
+</body>
+</html>
