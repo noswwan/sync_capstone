@@ -4,13 +4,14 @@ import asyncio
 import re
 import shutil
 import traceback
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, File, UploadFile, Form, Optional
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, File, UploadFile, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
+from typing import Optional
 
 # 외부 라이브러리
 import azure.cognitiveservices.speech as speechsdk
