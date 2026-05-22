@@ -12,26 +12,45 @@ class InterviewManager:
         project_summary = setup_data.get('project_summary')
         interview_mode = setup_data.get('interview_mode')
 
-        # PDF 내용이 있을 경우와 없을 경우를 구분하여 프롬프트 구성
-        pdf_context = f"\n[추가 정보: 자기소개서 내용]\n{pdf_text}" if pdf_text else "\n(자기소개서 없음: 제공된 기본 정보에만 집중하세요.)"
+        pdf_context = f"\n[추가 정보: 자기소개서 내용]\n{pdf_text}" if pdf_text else "\n(자기소개서 없음)"
 
         prompt = f"""
-        당신은 전문 기술 면접관입니다. 아래 제공된 지원자의 상세 정보와 자기소개서(있는 경우)를 바탕으로 첫 번째 영어 질문을 하세요.
+        You are a professional technical interviewer. Based on the information below, ask the FIRST interview question in English.
 
-        [지원자 기본 정보]
-        - 직무: {position}
-        - 주요 기술: {tech_stack}
-        - 경력 수준: {exp_level}
-        - 프로젝트 요약: {project_summary}
-        - 면접 스타일: {interview_mode}
+        [Candidate Info]
+        - Job Position: {position}
+        - Key Tech: {tech_stack}
+        - Exp Level: {exp_level}
+        - Project: {project_summary}
+        - Style: {interview_mode}
         {pdf_context}
 
-        [질문 가이드라인]
-        1. 반드시 영어(English)로만 질문하세요.
-        2. 자기소개서 내용이 있다면 그 안의 구체적인 경험을 우선적으로 파고드세요. 
-        3. 자기소개서가 없다면 프로젝트 요약과 기술 스택을 바탕으로 {exp_level}에 맞는 난이도의 질문을 하세요.
-        4. {interview_mode} 스타일의 톤을 유지하며, 서론 없이 바로 질문을 시작하세요.
+        [STRICT RULES]
+        1. Output ONLY the interview question in English.
+        2. Do NOT include any Korean, introductions, or meta-commentary.
+        3. Start directly with the question.
+        4. Maintain a {interview_mode} tone.
         """
+        response = await self.model.generate_content_async(prompt)
+        return response.text.strip()
+
+    # [수정] 클래스 내부 정렬 및 예외 처리 가이드라인 강화
+    async def generate_follow_up(self, prev_question, user_answer):
+        # 음성 인식 결과가 부실하거나 실패했을 때의 대응
+        if not user_answer or len(user_answer.strip()) < 5 or "음성 인식 실패" in user_answer:
+            prompt = f"The candidate's answer was unclear or missing. Politely ask them to repeat or clarify their response to: '{prev_question}' in English."
+        else:
+            prompt = f"""
+            You are a professional technical interviewer. 
+            Based on the candidate's answer: "{user_answer}" to your question: "{prev_question}", ask a concise follow-up question in English.
+            
+            [STRICT RULES]
+            1. Output ONLY the interview question in English.
+            2. Do NOT include any meta-commentary, explanations, or 'interview intent'.
+            3. Do NOT break character as an interviewer.
+            4. Keep the question technical and focused on the candidate's previous response.
+            """
+        
         response = await self.model.generate_content_async(prompt)
         return response.text.strip()
 
@@ -46,10 +65,5 @@ class InterviewManager:
 
     async def generate_question_from_pdf(self, pdf_text, position):
         prompt = f"당신은 전문 기술 면접관입니다. 자기소개서({pdf_text})를 읽고 직무({position}) 관련 영어 질문을 하세요."
-        response = await self.model.generate_content_async(prompt)
-        return response.text.strip()
-
-    async def generate_follow_up(self, prev_question, user_answer):
-        prompt = f"당신은 면접관입니다. 질문({prev_question})에 대한 답변({user_answer})을 듣고 영어로 꼬리 질문을 하세요."
         response = await self.model.generate_content_async(prompt)
         return response.text.strip()
